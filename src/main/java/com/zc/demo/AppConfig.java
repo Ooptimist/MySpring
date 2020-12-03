@@ -2,7 +2,7 @@ package com.zc.demo;
 
 import com.zc.spring.ComponentScan;
 
-@ComponentScan("con.zc.demo.service")
+@ComponentScan("com.zc.demo.service")
 public class AppConfig {
 
 }
