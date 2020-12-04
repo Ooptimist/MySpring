@@ -9,5 +9,6 @@ public class Test {
 
         UserService userService = (UserService) mySpringApplicationContext.getBean("userService");
         System.out.println(userService.getUser());
+        System.out.println(userService.getBeanName());
     }
 }

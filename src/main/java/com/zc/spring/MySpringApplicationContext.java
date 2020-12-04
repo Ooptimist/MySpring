@@ -14,10 +14,11 @@ import java.util.concurrent.ConcurrentHashMap;
 public class MySpringApplicationContext {
     private Class configClass;
 
-    Map<String,BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<String, BeanDefinition>();
+    private Map<String,BeanDefinition> beanDefinitionMap = new ConcurrentHashMap<String, BeanDefinition>();
     // 单例池，存放单例对象
-    Map<String,Object> singletonObjects = new ConcurrentHashMap<String,Object>();
-
+    private Map<String,Object> singletonObjects = new ConcurrentHashMap<String,Object>();
+    // 存放实现了beanPostProcessor接口的bean
+    private List<BeanPostProcessor> beanPostProcessorList = new ArrayList<BeanPostProcessor>();
 
     public MySpringApplicationContext(Class configClass) {
         this.configClass = configClass;
@@ -27,11 +28,29 @@ public class MySpringApplicationContext {
 
         // 解析得到的Class ---> BeanDefinition ---> beanDefinitionMap
         for (Class clazz : classList) {
-            BeanDefinition beanDefinition = new BeanDefinition();
-            beanDefinition.setBeanClass(clazz);
 
             // 判断该类是否有@Component注解
             if(clazz.isAnnotationPresent(Component.class)) {
+                // 判断该bean是否实现了BeanPostProcessor接口
+                if(BeanPostProcessor.class.isAssignableFrom(clazz)) {
+                    try {
+                        BeanPostProcessor instance = (BeanPostProcessor)clazz.getDeclaredConstructor().newInstance();
+                        // 将该实现了BeanPostProcessor接口的bean加入List中
+                        beanPostProcessorList.add(instance);
+                    } catch (InstantiationException e) {
+                        e.printStackTrace();
+                    } catch (IllegalAccessException e) {
+                        e.printStackTrace();
+                    } catch (InvocationTargetException e) {
+                        e.printStackTrace();
+                    } catch (NoSuchMethodException e) {
+                        e.printStackTrace();
+                    }
+                }
+
+                BeanDefinition beanDefinition = new BeanDefinition();
+                beanDefinition.setBeanClass(clazz);
+
                 // 取得@Component注解的value
                 Component componentAnnotation = (Component) clazz.getAnnotation(Component.class);
                 String beanName = componentAnnotation.value();
@@ -116,8 +135,26 @@ public class MySpringApplicationContext {
                 }
             }
 
+            // 3. Aware
+            if(bean instanceof BeanNameAware) {
+                ((BeanNameAware) bean).setBeanName(beanName);
+            }
 
-            // 3.初始化
+            // 初始化之前
+            for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                bean = beanPostProcessor.postProcessBeforeInitialization(bean,beanName);
+            }
+
+            // 4.初始化
+            if(bean instanceof InitializingBean) {
+                ((InitializingBean) bean).afterPropertiesSet();
+            }
+
+            // 初始化之后
+            for (BeanPostProcessor beanPostProcessor : beanPostProcessorList) {
+                bean = beanPostProcessor.postProcessAfterInitialization(bean,beanName);
+            }
+
             return bean;
         } catch (InstantiationException e) {
             e.printStackTrace();
